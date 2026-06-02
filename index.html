@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Gmail Assistant</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #333; }
+        
+        .header { background: #1a73e8; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+        .header h1 { font-size: 20px; }
+        
+        .container { display: flex; height: calc(100vh - 56px); }
+        
+        .sidebar { width: 220px; background: white; border-right: 1px solid #e0e0e0; padding: 16px 0; overflow-y: auto; }
+        .sidebar h3 { padding: 0 16px 8px; font-size: 12px; color: #888; text-transform: uppercase; }
+        .category-item { padding: 10px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 14px; border-radius: 0 20px 20px 0; margin-right: 8px; }
+        .category-item:hover, .category-item.active { background: #e8f0fe; color: #1a73e8; }
+        .badge { background: #1a73e8; color: white; border-radius: 12px; padding: 2px 8px; font-size: 11px; }
+        
+        .email-list { width: 340px; border-right: 1px solid #e0e0e0; overflow-y: auto; background: white; }
+        .email-item { padding: 14px 16px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.2s; }
+        .email-item:hover { background: #f8f9fa; }
+        .email-item.selected { background: #e8f0fe; }
+        .email-subject { font-weight: 600; font-size: 14px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .email-sender { font-size: 12px; color: #666; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .email-snippet { font-size: 12px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .email-category { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 10px; margin-top: 4px; background: #e8f0fe; color: #1a73e8; }
+        
+        .email-view { flex: 1; padding: 24px; overflow-y: auto; }
+        .email-view .placeholder { text-align: center; color: #aaa; margin-top: 100px; font-size: 16px; }
+        
+        .email-header { margin-bottom: 20px; }
+        .email-header h2 { font-size: 20px; margin-bottom: 8px; }
+        .email-header .meta { font-size: 13px; color: #666; }
+        
+        .actions { display: flex; gap: 10px; margin: 16px 0; flex-wrap: wrap; }
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
+        .btn-summary { background: #e8f0fe; color: #1a73e8; }
+        .btn-reply { background: #1a73e8; color: white; }
+        .btn-archive { background: #e8f5e9; color: #2e7d32; }
+        .btn-delete { background: #fce8e6; color: #c62828; }
+        .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+        
+        .ai-box { background: #f8f9fa; border-left: 3px solid #1a73e8; padding: 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+        .ai-box h4 { font-size: 12px; color: #1a73e8; text-transform: uppercase; margin-bottom: 8px; }
+        .ai-box p, .ai-box textarea { font-size: 14px; line-height: 1.6; color: #333; width: 100%; border: none; background: transparent; resize: vertical; min-height: 80px; font-family: inherit; }
+        
+        .loading { text-align: center; padding: 20px; color: #888; font-size: 14px; }
+        .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #ddd; border-top-color: #1a73e8; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .empty { text-align: center; padding: 40px; color: #aaa; }
+        .send-btn { margin-top: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <span style="font-size:24px">📧</span>
+    <h1>AI Gmail Assistant</h1>
+    <button class="btn btn-summary" style="margin-left:auto" onclick="loadEmails()">🔄 Refresh</button>
+</div>
+
+<div class="container">
+    <div class="sidebar">
+        <h3>Categories</h3>
+        <div id="categories">
+            <div class="category-item active" onclick="filterCategory('All', this)">📬 All <span class="badge" id="count-All">0</span></div>
+            <div class="category-item" onclick="filterCategory('LinkedIn', this)">💼 LinkedIn <span class="badge" id="count-LinkedIn">0</span></div>
+            <div class="category-item" onclick="filterCategory('IEEE', this)">📡 IEEE <span class="badge" id="count-IEEE">0</span></div>
+            <div class="category-item" onclick="filterCategory('ChatGPT', this)">🤖 ChatGPT <span class="badge" id="count-ChatGPT">0</span></div>
+            <div class="category-item" onclick="filterCategory('Jobs', this)">💼 Jobs <span class="badge" id="count-Jobs">0</span></div>
+            <div class="category-item" onclick="filterCategory('Promotions', this)">🎯 Promos <span class="badge" id="count-Promotions">0</span></div>
+            <div class="category-item" onclick="filterCategory('Spam', this)">🚫 Spam <span class="badge" id="count-Spam">0</span></div>
+            <div class="category-item" onclick="filterCategory('Newsletter', this)">📰 Newsletter <span class="badge" id="count-Newsletter">0</span></div>
+            <div class="category-item" onclick="filterCategory('Other', this)">📁 Other <span class="badge" id="count-Other">0</span></div>
+        </div>
+    </div>
+
+    <div class="email-list" id="emailList">
+        <div class="loading"><span class="spinner"></span> Loading emails...</div>
+    </div>
+
+    <div class="email-view" id="emailView">
+        <div class="placeholder">👈 Select an email to view</div>
+    </div>
+</div>
+
+<script>
+    let allEmails = [];
+    let currentCategory = 'All';
+    let currentEmail = null;
+
+    async function loadEmails() {
+        document.getElementById('emailList').innerHTML = '<div class="loading"><span class="spinner"></span> Loading emails...</div>';
+        const res = await fetch('/api/emails');
+        allEmails = await res.json();
+        updateCounts();
+        renderEmailList();
+    }
+
+    function updateCounts() {
+        document.getElementById('count-All').textContent = allEmails.length;
+        ['LinkedIn','IEEE','ChatGPT','Jobs','Promotions','Spam','Newsletter','Other'].forEach(cat => {
+            const count = allEmails.filter(e => e.category === cat).length;
+            document.getElementById('count-' + cat).textContent = count;
+        });
+    }
+
+    function filterCategory(cat, el) {
+        currentCategory = cat;
+        document.querySelectorAll('.category-item').forEach(i => i.classList.remove('active'));
+        el.classList.add('active');
+        renderEmailList();
+    }
+
+    function renderEmailList() {
+        const filtered = currentCategory === 'All' ? allEmails : allEmails.filter(e => e.category === currentCategory);
+        if (filtered.length === 0) {
+            document.getElementById('emailList').innerHTML = '<div class="empty">No emails in this category</div>';
+            return;
+        }
+        document.getElementById('emailList').innerHTML = filtered.map(e => `
+            <div class="email-item ${currentEmail && currentEmail.id === e.id ? 'selected' : ''}" onclick="selectEmail('${e.id}')">
+                <div class="email-subject">${e.subject}</div>
+                <div class="email-sender">${e.sender}</div>
+                <div class="email-snippet">${e.snippet}</div>
+                <span class="email-category">${e.category}</span>
+            </div>
+        `).join('');
+    }
+
+    function selectEmail(id) {
+        currentEmail = allEmails.find(e => e.id === id);
+        document.getElementById('emailView').innerHTML = `
+            <div class="email-header">
+                <h2>${currentEmail.subject}</h2>
+                <div class="meta">From: ${currentEmail.sender}</div>
+            </div>
+            <div class="actions">
+                <button class="btn btn-summary" onclick="getSummary('${id}')">✨ AI Summary</button>
+                <button class="btn btn-reply" onclick="getDraftReply('${id}')">✍️ Draft Reply</button>
+                <button class="btn btn-archive" onclick="archiveEmail('${id}')">📦 Archive</button>
+                <button class="btn btn-delete" onclick="deleteEmail('${id}')">🗑️ Delete</button>
+            </div>
+            <div style="background:#f8f9fa; padding:16px; border-radius:8px; font-size:14px; line-height:1.6;">
+                ${currentEmail.snippet}
+            </div>
+            <div id="aiResult"></div>
+        `;
+        renderEmailList();
+    }
+
+    async function getSummary(id) {
+        document.getElementById('aiResult').innerHTML = '<div class="loading"><span class="spinner"></span> Summarizing...</div>';
+        const res = await fetch(`/api/summary/${id}`);
+        const data = await res.json();
+        document.getElementById('aiResult').innerHTML = `
+            <div class="ai-box">
+                <h4>✨ AI Summary</h4>
+                <p>${data.summary}</p>
+            </div>`;
+    }
+
+    async function getDraftReply(id) {
+        document.getElementById('aiResult').innerHTML = '<div class="loading"><span class="spinner"></span> Drafting reply...</div>';
+        const res = await fetch(`/api/reply/${id}`);
+        const data = await res.json();
+        document.getElementById('aiResult').innerHTML = `
+            <div class="ai-box">
+                <h4>✍️ Draft Reply</h4>
+                <textarea id="replyText">${data.reply}</textarea>
+                <button class="btn btn-reply send-btn" onclick="copyReply()">📋 Copy Reply</button>
+            </div>`;
+    }
+
+    function copyReply() {
+        navigator.clipboard.writeText(document.getElementById('replyText').value);
+        alert('Reply copied to clipboard!');
+    }
+
+    async function archiveEmail(id) {
+        await fetch(`/api/archive/${id}`, {method: 'POST'});
+        allEmails = allEmails.filter(e => e.id !== id);
+        currentEmail = null;
+        updateCounts();
+        renderEmailList();
+        document.getElementById('emailView').innerHTML = '<div class="placeholder">👈 Select an email to view</div>';
+    }
+
+    async function deleteEmail(id) {
+        if (!confirm('Move this email to trash?')) return;
+        await fetch(`/api/delete/${id}`, {method: 'DELETE'});
+        allEmails = allEmails.filter(e => e.id !== id);
+        currentEmail = null;
+        updateCounts();
+        renderEmailList();
+        document.getElementById('emailView').innerHTML = '<div class="placeholder">👈 Select an email to view</div>';
+    }
+
+    loadEmails();
+</script>
+</body>
+</html>
